@@ -1,0 +1,18 @@
+[package]
+name = "compact-encoding-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Wire-compatible Rust port of the compact-encoding primitives plus the Hypercore and Protomux message codecs"
+keywords = ["hypercore", "protomux", "encoding", "holepunch"]
+categories = ["encoding", "network-programming"]
+
+[lib]
+name = "compact_encoding"
+
+[dependencies]
+bytes = "1"
+
+[dev-dependencies]
+serde_json = { version = "1", features = ["float_roundtrip"] }

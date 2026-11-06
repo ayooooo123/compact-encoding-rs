@@ -1,0 +1,13 @@
+{
+  "name": "compact-encoding-rs-fixtures",
+  "private": true,
+  "description": "Generates the golden fixtures in ../golden.json from the npm reference implementation",
+  "scripts": {
+    "gen": "node gen.js > ../golden.json"
+  },
+  "dependencies": {
+    "compact-encoding": "3.5.2",
+    "hypercore": "11.39.5",
+    "protomux": "3.13.0"
+  }
+}
