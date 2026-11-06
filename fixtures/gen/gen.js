@@ -35,6 +35,10 @@ for (const n of [0, -1, 1, -2, 2, 126, -127, 2 ** 51, -(2 ** 52), 2 ** 52 - 1]) 
 for (const n of [0, -1, 1, 63, -64]) add('int8', c.int8, n)
 for (const n of [0, -1, 32767, -32768]) add('int16', c.int16, n)
 for (const n of [0, -1, 2147483647, -2147483648]) add('int32', c.int32, n)
+for (const n of [0, -1, 8388607, -8388608]) add('int24', c.int24, n)
+for (const [name, bits] of [['int40', 40], ['int48', 48], ['int56', 53]]) {
+  for (const n of [0, -1, 2 ** (bits - 1) - 1, -(2 ** (bits - 1))]) add(name, c[name], n)
+}
 for (const n of [0, -1, 2 ** 52 - 1, -(2 ** 52)]) add('int64', c.int64, n)
 
 for (const n of [0, 1.5, -0.25, 3.4028234663852886e38, 1e-10]) add('float32', c.float32, n)
@@ -64,11 +68,13 @@ for (const ip of ['127.0.0.1', '255.255.255.255', '10.0.40.100']) {
   add('ipv4', c.ipv4, ip)
   add('ip', c.ip, ip)
   add('ipAddress', c.ipAddress, { host: ip, port: int(65536) })
+  add('ipv4Address', c.ipv4Address, { host: ip, port: int(65536) })
 }
 for (const ip of ['1:2:3:4:5:6:7:8', 'fe80::1', '::1', '2001:db8::ff00:42:8329']) {
   add('ipv6', c.ipv6, ip)
   add('ip', c.ip, ip)
   add('ipAddress', c.ipAddress, { host: ip, port: int(65536) })
+  add('ipv6Address', c.ipv6Address, { host: ip, port: int(65536) })
 }
 
 // Hypercore

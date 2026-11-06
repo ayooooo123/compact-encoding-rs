@@ -184,6 +184,10 @@ fn run(codec: &str, bytes: &[u8]) -> (Value, Vec<u8>) {
         "int8" => prim!(int8, int8),
         "int16" => prim!(int16, int16),
         "int32" => prim!(int32, int32),
+        "int24" => prim!(int24, int24),
+        "int40" => prim!(int40, int40),
+        "int48" => prim!(int48, int48),
+        "int56" => prim!(int56, int56),
         "int64" => prim!(int64, int64),
         "float32" => {
             let v = reader(bytes).float32().unwrap();
@@ -222,6 +226,12 @@ fn run(codec: &str, bytes: &[u8]) -> (Value, Vec<u8>) {
         "ipv6" => prim!(ipv6, ipv6, ipv6_json),
         "ip" => prim!(ip, ip, ip_json),
         "ipAddress" => prim!(ip_address, ip_address, addr_json),
+        "ipv4Address" => prim!(ipv4_address, ipv4_address, |a: &std::net::SocketAddrV4| {
+            json!({ "host": a.ip().to_string(), "family": 4, "port": a.port() })
+        }),
+        "ipv6Address" => prim!(ipv6_address, ipv6_address, |a: &std::net::SocketAddrV6| {
+            json!({ "host": ipv6_json(a.ip()), "family": 6, "port": a.port() })
+        }),
         "manifest" => codec_case::<Manifest>(bytes),
         "handshake" => codec_case::<Handshake>(bytes),
         "request" => codec_case::<Request>(bytes),
@@ -315,4 +325,14 @@ fn array_length_limit_matches_js() {
 fn non_minimal_uint_is_accepted_like_js() {
     assert_eq!(reader(&[0xfd, 5, 0]).uint(), Ok(5));
     assert_eq!(reader(&[0xff, 1, 0, 0, 0, 0, 0, 0, 0]).uint(), Ok(1));
+}
+
+#[test]
+fn unread_re_reads_a_version_byte_as_flags() {
+    let mut r = reader(&[3, 9]);
+    assert_eq!(r.uint8(), Ok(3));
+    r.unread(1).unwrap();
+    assert_eq!(r.uint(), Ok(3));
+    assert_eq!(r.unread(2), Err(Error::OutOfBounds));
+    assert_eq!(r.uint8(), Ok(9));
 }

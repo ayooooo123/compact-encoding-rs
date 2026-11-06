@@ -1,9 +1,8 @@
 #![doc = include_str!("../README.md")]
-
 #![forbid(unsafe_code)]
 
 use std::fmt;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
 pub use bytes::Bytes;
 
@@ -207,8 +206,24 @@ impl Writer {
         self.uint16(zigzag(n as i64) as u16)
     }
 
+    pub fn int24(&mut self, n: i32) {
+        self.uint24(zigzag(n as i64) as u32)
+    }
+
     pub fn int32(&mut self, n: i32) {
         self.uint32(zigzag(n as i64) as u32)
+    }
+
+    pub fn int40(&mut self, n: i64) {
+        self.uint40(zigzag(n))
+    }
+
+    pub fn int48(&mut self, n: i64) {
+        self.uint48(zigzag(n))
+    }
+
+    pub fn int56(&mut self, n: i64) {
+        self.uint56(zigzag(n))
     }
 
     pub fn int64(&mut self, n: i64) {
@@ -303,6 +318,18 @@ impl Writer {
         self.ip(&a.ip());
         self.uint16(a.port())
     }
+
+    /// `c.ipv4Address`: four address bytes then a uint16 port.
+    pub fn ipv4_address(&mut self, a: &SocketAddrV4) {
+        self.ipv4(a.ip());
+        self.uint16(a.port())
+    }
+
+    /// `c.ipv6Address`: sixteen address bytes then a uint16 port.
+    pub fn ipv6_address(&mut self, a: &SocketAddrV6) {
+        self.ipv6(a.ip());
+        self.uint16(a.port())
+    }
 }
 
 /// Reads encoded values from a shared buffer.
@@ -330,6 +357,16 @@ impl Reader {
     /// Byte offset of the cursor within the original buffer.
     pub fn position(&self) -> usize {
         self.start
+    }
+
+    /// Steps the cursor back `n` bytes (JS `state.start -= n`), e.g. to
+    /// re-read a version byte as flags.
+    pub fn unread(&mut self, n: usize) -> Result<()> {
+        if n > self.start {
+            return Err(Error::OutOfBounds);
+        }
+        self.start -= n;
+        Ok(())
     }
 
     fn take(&mut self, n: usize) -> Result<&[u8]> {
@@ -432,8 +469,24 @@ impl Reader {
         self.uint16().map(|n| unzigzag(n as u64) as i16)
     }
 
+    pub fn int24(&mut self) -> Result<i32> {
+        self.uint24().map(|n| unzigzag(n as u64) as i32)
+    }
+
     pub fn int32(&mut self) -> Result<i32> {
         self.uint32().map(|n| unzigzag(n as u64) as i32)
+    }
+
+    pub fn int40(&mut self) -> Result<i64> {
+        self.uint40().map(unzigzag)
+    }
+
+    pub fn int48(&mut self) -> Result<i64> {
+        self.uint48().map(unzigzag)
+    }
+
+    pub fn int56(&mut self) -> Result<i64> {
+        self.uint56().map(unzigzag)
     }
 
     pub fn int64(&mut self) -> Result<i64> {
@@ -548,6 +601,16 @@ impl Reader {
     pub fn ip_address(&mut self) -> Result<SocketAddr> {
         let ip = self.ip()?;
         Ok(SocketAddr::new(ip, self.uint16()?))
+    }
+
+    pub fn ipv4_address(&mut self) -> Result<SocketAddrV4> {
+        let ip = self.ipv4()?;
+        Ok(SocketAddrV4::new(ip, self.uint16()?))
+    }
+
+    pub fn ipv6_address(&mut self) -> Result<SocketAddrV6> {
+        let ip = self.ipv6()?;
+        Ok(SocketAddrV6::new(ip, self.uint16()?, 0, 0))
     }
 }
 
