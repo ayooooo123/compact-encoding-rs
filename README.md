@@ -32,7 +32,7 @@ each peer.
 ## Compatibility
 
 `fixtures/golden.json` holds 200+ cases encoded by the npm reference (`compact-encoding` 3.5.2,
-`hypercore` 11.39.5, `protomux` 3.13.0). `cargo test` decodes every case to
+`hypercore` 11.40.3, `protomux` 3.13.0). `cargo test` decodes every case to
 the JS value and re-encodes it to identical bytes. Regenerate with:
 
 ```sh
