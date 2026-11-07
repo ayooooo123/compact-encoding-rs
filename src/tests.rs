@@ -336,3 +336,25 @@ fn unread_re_reads_a_version_byte_as_flags() {
     assert_eq!(r.unread(2), Err(Error::OutOfBounds));
     assert_eq!(r.uint8(), Ok(9));
 }
+
+#[test]
+fn sub_bounds_the_inner_reads_and_skips_to_the_window_end() {
+    // A window of two bytes hiding a wider value: the inner reader must see
+    // the window end, and the outer one must resume after the window.
+    let mut r = reader(&[0xff, 0xff, 0x07]);
+    let inner = r.sub(2, |r| {
+        assert_eq!(r.remaining(), 2);
+        r.uint()
+    });
+    assert_eq!(inner, Err(Error::OutOfBounds));
+    assert_eq!(r.uint8(), Ok(7));
+
+    // Unread bytes inside the window are skipped, as `c.frame` does.
+    let mut r = reader(&[1, 2, 3]);
+    assert_eq!(r.sub(2, |r| r.uint8()), Ok(1));
+    assert_eq!(r.uint8(), Ok(3));
+
+    // A window past the buffer is an error, not a panic.
+    let mut r = reader(&[1]);
+    assert_eq!(r.sub(2, |r| r.uint8()), Err(Error::OutOfBounds));
+}

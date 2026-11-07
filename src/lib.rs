@@ -574,9 +574,19 @@ impl Reader {
     /// skips whatever the value leaves unread.
     pub fn frame<T: Codec>(&mut self) -> Result<T> {
         let n = self.len_prefix()?;
+        self.sub(n, T::decode)
+    }
+
+    /// Runs `f` inside a window of exactly `n` bytes and then moves the cursor
+    /// to the end of that window (JS `c.frame`): the inner reads see the
+    /// window's end and the outer reader resumes after it.
+    pub fn sub<T>(&mut self, n: usize, f: impl FnOnce(&mut Reader) -> Result<T>) -> Result<T> {
+        if self.remaining() < n {
+            return Err(Error::OutOfBounds);
+        }
         let end = self.end;
         self.end = self.start + n;
-        let v = T::decode(self);
+        let v = f(self);
         self.start = self.end;
         self.end = end;
         v
