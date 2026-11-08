@@ -39,6 +39,12 @@ the JS value and re-encodes it to identical bytes. Regenerate with:
 cd fixtures/gen && npm install && npm run gen
 ```
 
+`tests/allocations.rs` checks that 10,000 shared-buffer decodes allocate nothing
+and return pointers into the input, while 10,000 buffer encodes allocate one
+output each. The counter is local to the test thread, excluding test-harness
+activity. This already uses zero-copy `Bytes` slices; no pool or new codec API
+is needed.
+
 ## License
 
 MIT OR Apache-2.0
