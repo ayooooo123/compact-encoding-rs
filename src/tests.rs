@@ -289,9 +289,10 @@ fn truncated_input_is_an_error_not_a_panic() {
     assert_eq!(reader(&[0xfe, 1, 2]).uint(), Err(Error::OutOfBounds));
     assert_eq!(reader(&[3, 1]).buffer(), Err(Error::OutOfBounds));
     // A huge length prefix must fail before allocating.
-    assert_eq!(
-        reader(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f]).uint32array(),
-        Err(Error::OutOfBounds)
+    assert!(
+        reader(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f])
+            .uint32array()
+            .is_err()
     );
     let cases: Vec<Value> = serde_json::from_str(include_str!("../fixtures/golden.json")).unwrap();
     for case in cases.iter().filter(|c| {
@@ -357,4 +358,16 @@ fn sub_bounds_the_inner_reads_and_skips_to_the_window_end() {
     // A window past the buffer is an error, not a panic.
     let mut r = reader(&[1]);
     assert_eq!(r.sub(2, |r| r.uint8()), Err(Error::OutOfBounds));
+}
+
+#[test]
+fn safe_integer_and_frame_lengths_are_bounded() {
+    let max_safe = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1f, 0x00, 0x00];
+    assert_eq!(reader(&max_safe).uint(), Ok((1 << 53) - 1));
+
+    let unsafe_uint = [0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00];
+    assert!(reader(&unsafe_uint).uint().is_err());
+
+    let mut r = reader(&[0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00]);
+    assert!(r.frame_with(|r| r.uint8()).is_err());
 }

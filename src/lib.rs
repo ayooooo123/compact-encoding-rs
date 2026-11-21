@@ -139,6 +139,7 @@ impl Writer {
         self.buf
     }
 
+    /// npm accepts only values up to 2^53-1; larger values produce bytes no JS peer can decode.
     pub fn uint(&mut self, n: u64) {
         if n <= 0xfc {
             self.buf.push(n as u8);
@@ -154,6 +155,7 @@ impl Writer {
         }
     }
 
+    /// npm accepts only -2^52 through 2^52-1; larger values produce bytes no JS peer can decode.
     pub fn int(&mut self, n: i64) {
         self.uint(zigzag(n))
     }
@@ -186,14 +188,21 @@ impl Writer {
         self.buf.extend_from_slice(&n.to_le_bytes()[..6])
     }
 
+    /// npm accepts only values up to 2^53-1; larger values produce bytes no JS peer can decode.
     pub fn uint56(&mut self, n: u64) {
         self.buf.extend_from_slice(&n.to_le_bytes()[..7])
     }
 
+    /// npm accepts only values up to 2^53-1; larger values produce bytes no JS peer can decode.
     pub fn uint64(&mut self, n: u64) {
         self.buf.extend_from_slice(&n.to_le_bytes())
     }
 
+    pub fn biguint64(&mut self, n: u64) {
+        self.uint64(n)
+    }
+
+    /// npm accepts only values up to 2^53-1; larger values produce bytes no JS peer can decode.
     pub fn uint64be(&mut self, n: u64) {
         self.buf.extend_from_slice(&n.to_be_bytes())
     }
@@ -226,8 +235,13 @@ impl Writer {
         self.uint56(zigzag(n))
     }
 
+    /// npm accepts only -2^52 through 2^52-1; larger values produce bytes no JS peer can decode.
     pub fn int64(&mut self, n: i64) {
         self.uint64(zigzag(n))
+    }
+
+    pub fn bigint64(&mut self, n: i64) {
+        self.biguint64(zigzag(n))
     }
 
     pub fn float32(&mut self, n: f32) {
@@ -399,7 +413,8 @@ impl Reader {
         Ok(u64::from_le_bytes(out))
     }
 
-    fn len_prefix(&mut self) -> Result<usize> {
+    /// Reads a length prefix that fits in the current window.
+    pub fn len_prefix(&mut self) -> Result<usize> {
         let n = self.uint()?;
         if n > self.remaining() as u64 {
             return Err(Error::OutOfBounds);
@@ -409,12 +424,21 @@ impl Reader {
 
     /// Like JS, non-minimal prefixes (e.g. `fd 05 00`) are accepted.
     pub fn uint(&mut self) -> Result<u64> {
-        match self.uint8()? {
-            a @ 0..=0xfc => Ok(a as u64),
-            0xfd => self.uint16().map(u64::from),
-            0xfe => self.uint32().map(u64::from),
-            _ => self.uint64(),
+        let n = match self.uint8()? {
+            a @ 0..=0xfc => a as u64,
+            0xfd => self.uint16()? as u64,
+            0xfe => self.uint32()? as u64,
+            _ => self.biguint64()?,
+        };
+        self.safe_uint(n)
+    }
+
+    fn safe_uint(&self, n: u64) -> Result<u64> {
+        const MAX_SAFE_UINT: u64 = (1 << 53) - 1;
+        if n > MAX_SAFE_UINT {
+            return Err(Error::Invalid("unsafe integer", n));
         }
+        Ok(n)
     }
 
     pub fn int(&mut self) -> Result<i64> {
@@ -450,15 +474,21 @@ impl Reader {
     }
 
     pub fn uint56(&mut self) -> Result<u64> {
-        self.le_u64(7)
+        self.le_u64(7).and_then(|n| self.safe_uint(n))
     }
 
     pub fn uint64(&mut self) -> Result<u64> {
+        self.biguint64().and_then(|n| self.safe_uint(n))
+    }
+
+    pub fn biguint64(&mut self) -> Result<u64> {
         self.le().map(u64::from_le_bytes)
     }
 
     pub fn uint64be(&mut self) -> Result<u64> {
-        self.le().map(u64::from_be_bytes)
+        self.le()
+            .map(u64::from_be_bytes)
+            .and_then(|n| self.safe_uint(n))
     }
 
     pub fn int8(&mut self) -> Result<i8> {
@@ -491,6 +521,10 @@ impl Reader {
 
     pub fn int64(&mut self) -> Result<i64> {
         self.uint64().map(unzigzag)
+    }
+
+    pub fn bigint64(&mut self) -> Result<i64> {
+        self.biguint64().map(unzigzag)
     }
 
     pub fn float32(&mut self) -> Result<f32> {
@@ -563,7 +597,7 @@ impl Reader {
             return Err(Error::ArrayTooBig(n));
         }
         // Each element takes at least one byte, which bounds the allocation.
-        let mut out = Vec::with_capacity((n as usize).min(self.remaining()));
+        let mut out = Vec::new();
         for _ in 0..n {
             out.push(T::decode(self)?)
         }
@@ -573,8 +607,13 @@ impl Reader {
     /// `c.frame(enc)`: decodes one value inside a length-prefixed window and
     /// skips whatever the value leaves unread.
     pub fn frame<T: Codec>(&mut self) -> Result<T> {
+        self.frame_with(T::decode)
+    }
+
+    /// Decodes a value inside a length-prefixed window.
+    pub fn frame_with<T>(&mut self, f: impl FnOnce(&mut Reader) -> Result<T>) -> Result<T> {
         let n = self.len_prefix()?;
-        self.sub(n, T::decode)
+        self.sub(n, f)
     }
 
     /// Runs `f` inside a window of exactly `n` bytes and then moves the cursor

@@ -29,6 +29,12 @@ Not ported: `json`, `ndjson`, `any`, `date`, `biguint`/`bigint`, `lexint` and th
 string encodings. Hypercore's oplog/storage codecs are left out on purpose: storage is private to
 each peer.
 
+## Deviations from npm
+
+`Writer` remains infallible. npm accepts `uint`, `uint56`, `uint64`, and `uint64be`
+only through 2^53-1, and `int` and `int64` only from -2^52 through 2^52-1; larger
+Rust values produce bytes no JS peer can decode.
+
 ## Compatibility
 
 `fixtures/golden.json` holds 200+ cases encoded by the npm reference (`compact-encoding` 3.5.2,
